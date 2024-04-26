@@ -7,9 +7,28 @@ endif()
 
 # find dependencies
 find_package(ament_cmake REQUIRED)
-# uncomment the following section in order to fill in
-# further dependencies manually.
-# find_package(<dependency> REQUIRED)
+find_package(robione_ros2_driver REQUIRED)
+find_package(rclcpp REQUIRED)
+find_package(sensor_msgs REQUIRED)
+find_package(robione_ros2_driver REQUIRED)
+
+include_directories(
+  ${PROJECT_SOURCE_DIR}/include
+)
+
+set(TARGET_SRC
+        src/robione_joy_adapter.cpp
+        src/robione_joy_adapter_node.cpp
+        src/joy_control_cmd_converter.cpp
+)
+
+add_executable(robione_joy_adapter_node ${TARGET_SRC})
+
+ament_target_dependencies(robione_joy_adapter_node
+                          rclcpp
+                          sensor_msgs
+                          robione_ros2_driver
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -22,5 +41,17 @@ if(BUILD_TESTING)
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
+
+install(TARGETS
+        robione_joy_adapter_node
+        DESTINATION lib/${PROJECT_NAME})
+
+install(DIRECTORY launch
+        DESTINATION share/${PROJECT_NAME}
+)
+
+install(DIRECTORY config
+        DESTINATION share/${PROJECT_NAME}
+)
 
 ament_package()
