@@ -6,7 +6,7 @@
       control_info_topic: "/robione/control_info"
 
     timeout_config:
-      joystick_timeout: 5.0 # seconds
+      joystick_timeout: 2.0 # seconds
 
     settings:
       vel_increase_decrease_rate: 0.2 # m/s
