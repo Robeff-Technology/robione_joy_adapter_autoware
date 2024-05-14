@@ -4,6 +4,7 @@
       joystick_topic: "/joy"
       control_cmd_topic: "/robione/control_cmd"
       control_info_topic: "/robione/control_info"
+      vehicle_info_topic: "/robione/vehicle_info"
 
     timeout_config:
       joystick_timeout: 2.0 # seconds
@@ -12,3 +13,5 @@
       vel_increase_decrease_rate: 0.2 # m/s
       max_velocity: 5.0 # m/s 
       control_cmd_period:  100 # miliseconds
+      max_steer_angle: 300.0 # degree
+      max_tire_angle: 0.45 #radian

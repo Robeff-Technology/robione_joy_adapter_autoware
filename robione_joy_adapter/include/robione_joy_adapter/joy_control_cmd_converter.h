@@ -7,6 +7,8 @@
 
 #include <sensor_msgs/msg/joy.hpp>
 #include <robione_ros2_driver/msg/control_cmd.hpp>
+#include <robione_ros2_driver/msg/control_info.hpp>
+#include <robione_ros2_driver/msg/vehicle_info.hpp>
 
 namespace robione_joy_adapter{
     class RisingEdgeDetector {
@@ -67,12 +69,16 @@ namespace robione_joy_adapter{
         robione_ros2_driver::msg::ControlCmd control_cmd_;
         float max_velocity_;
         float vel_rate_;
+        float max_steering_angle_;
+        float max_tire_angle_;
         static float scale(float value, float min_in, float max_in, float min_out, float max_out);
+        float tire_angle_to_scaled_steer_angle(float tire_angle_rad);
     public:
         JoyControlCmdConverter();
         ~JoyControlCmdConverter() = default;
-        void UpdateJoy(const sensor_msgs::msg::Joy::SharedPtr msg, float actual_vel);
-        void LoadSettings(float max_velocity, float vel_rate);
+        void UpdateJoy(const sensor_msgs::msg::Joy::SharedPtr msg, const robione_ros2_driver::msg::ControlInfo::SharedPtr control_info_ptr, const robione_ros2_driver::msg::VehicleInfo::SharedPtr vehicle_info_ptr);
+        void LoadSettings(float max_velocity, float vel_rate, float max_steering_angle, float max_tire_angle);
+        void set_emergency();
         robione_ros2_driver::msg::ControlCmd GetControlCmd(){return control_cmd_;};
     };
 };  // namespace robione_joy_adapter

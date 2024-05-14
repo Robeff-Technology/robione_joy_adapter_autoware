@@ -17,19 +17,31 @@ namespace robione_joy_adapter{
         vel_rate_ = 0.5;
     }
 
-    void JoyControlCmdConverter::LoadSettings(float max_velocity, float vel_rate) {
+    void JoyControlCmdConverter::LoadSettings(float max_velocity, float vel_rate, float max_steer_angle, float max_tire_angle) {
         max_velocity_ = max_velocity;
         vel_rate_ = vel_rate;
+        max_steering_angle_ = max_steer_angle;
+        max_tire_angle_ = max_tire_angle;
     }
 
     float JoyControlCmdConverter::scale(float value, float min_in, float max_in, float min_out, float max_out) {
         return min_out + (value - min_in) * (max_out - min_out) / (max_in - min_in);
     }
 
-    void JoyControlCmdConverter::UpdateJoy(const sensor_msgs::msg::Joy::SharedPtr msg, float actual_vel) {
-        control_cmd_.steer_angle = msg->axes[0];
+    float JoyControlCmdConverter::tire_angle_to_scaled_steer_angle(float tire_angle_rad) {
+        float tire_to_steer_deg = tire_angle_rad / 0.001511;
+        return tire_to_steer_deg / max_steering_angle_;
+    }
 
-        control_cmd_.steer_vel = scale(std::fabs(actual_vel), 0, 12.0f, 325.0f, 80.0f);
+    void JoyControlCmdConverter::set_emergency() {
+        control_cmd_.set_velocity = 0.0;
+        control_cmd_.emergency = robione_ros2_driver::msg::ControlCmd::EMERGENCY_ON;
+    }
+
+    void JoyControlCmdConverter::UpdateJoy(const sensor_msgs::msg::Joy::SharedPtr msg, const robione_ros2_driver::msg::ControlInfo::SharedPtr control_info_ptr, const robione_ros2_driver::msg::VehicleInfo::SharedPtr vehicle_info_ptr) {
+        control_cmd_.steer_angle = tire_angle_to_scaled_steer_angle(msg->axes[0] * max_tire_angle_);
+
+        control_cmd_.steer_vel = scale(std::fabs(control_info_ptr->velocity), 0, 12.0f, 325.0f, 80.0f);
         if(msg->buttons[9] > 0){
             control_cmd_.emergency = robione_ros2_driver::msg::ControlCmd::EMERGENCY_OFF;
         }
@@ -44,7 +56,7 @@ namespace robione_joy_adapter{
             control_cmd_.handbrake = robione_ros2_driver::msg::ControlCmd::HANDBRAKE_OFF;
         }
 
-        if(control_cmd_.emergency != robione_ros2_driver::msg::ControlCmd::EMERGENCY_ON){
+        if(control_cmd_.emergency != robione_ros2_driver::msg::ControlCmd::EMERGENCY_ON && vehicle_info_ptr->emergency == 0){
             if(vel_increase_detector_.detectRisingEdge(msg->buttons[3] > 0)){
                 control_cmd_.set_velocity = std::min(control_cmd_.set_velocity + vel_rate_, max_velocity_);
             }

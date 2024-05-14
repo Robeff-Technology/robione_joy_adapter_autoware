@@ -4,21 +4,25 @@ namespace robione_joy_adapter{
     RobioneJoyAdapter::RobioneJoyAdapter(): Node("robione_joy_adapter")
     {
         load_parameters();
-        joy_converter_.LoadSettings(configs_.settings.max_speed, configs_.settings.vel_increase_decrease_rate);
+        joy_converter_.LoadSettings(configs_.settings.max_speed, configs_.settings.vel_increase_decrease_rate, configs_.settings.max_steering_angle, configs_.settings.max_tire_angle);
         sub_joy_ = this->create_subscription<sensor_msgs::msg::Joy>(configs_.topic.joy, 10, std::bind(&RobioneJoyAdapter::joy_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(std::chrono::milliseconds(configs_.settings.control_cmd_period), std::bind(&RobioneJoyAdapter::timer_callback, this));
         pub_control_cmd_ = this->create_publisher<robione_ros2_driver::msg::ControlCmd>(configs_.topic.control_cmd, 10);
         sub_control_info_ = this->create_subscription<robione_ros2_driver::msg::ControlInfo>(configs_.topic.control_info, 10, std::bind(&RobioneJoyAdapter::control_info_callback, this, std::placeholders::_1));
+        sub_vehicle_info_ = this->create_subscription<robione_ros2_driver::msg::VehicleInfo>(configs_.topic.vehicle_info, 10, std::bind(&RobioneJoyAdapter::vehicle_info_callback, this, std::placeholders::_1));
     }
 
     void RobioneJoyAdapter::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
-        float vel = 0;
-        if(control_info_ptr_ != nullptr)
-        {
-            vel = control_info_ptr_->velocity;
+        if(control_info_ptr_ != nullptr || vehicle_info_ptr_ != nullptr){
+            joy_converter_.UpdateJoy(msg, control_info_ptr_, vehicle_info_ptr_);
         }
-        joy_converter_.UpdateJoy(msg, vel);
+        else{
+            RCLCPP_WARN(this->get_logger(), "Control info  or vehicle info not received yet");
+            joy_converter_.set_emergency();
+        }
+
+
         joy_time_ = rclcpp::Clock().now();
     }
 
@@ -27,19 +31,25 @@ namespace robione_joy_adapter{
         configs_.topic.joy = this->declare_parameter<std::string>("topic_config.joystick_topic", "/joy");
         configs_.topic.control_cmd = this->declare_parameter<std::string>("topic_config.control_cmd_topic", "/control_cmd");
         configs_.topic.control_info = this->declare_parameter<std::string>("topic_config.control_info_topic", "/control_info");
+        configs_.topic.vehicle_info = this->declare_parameter<std::string>("topic_config.vehicle_info_topic", "/vehicle_info");
         configs_.timeout.joy_timeout = this->declare_parameter<float>("timeout_config.joystick_timeout", 5.0);
         configs_.settings.vel_increase_decrease_rate = this->declare_parameter<double>("settings.vel_increase_decrease_rate", 0.5);
         configs_.settings.max_speed = this->declare_parameter<double>("settings.max_velocity", 5.0);
         configs_.settings.control_cmd_period = this->declare_parameter<int>("settings.control_cmd_period", 200);
+        configs_.settings.max_steering_angle = this->declare_parameter<double>("settings.max_steer_angle", 300.0);
+        configs_.settings.max_tire_angle = this->declare_parameter<double>("settings.max_tire_angle", 0.45);
 
         RCLCPP_INFO(this->get_logger(), "--------------------------------CONFIGS--------------------------------");
         RCLCPP_INFO(this->get_logger(), "Joy topic: %s", configs_.topic.joy.c_str());
         RCLCPP_INFO(this->get_logger(), "Control cmd topic: %s", configs_.topic.control_cmd.c_str());
         RCLCPP_INFO(this->get_logger(), "Control info topic: %s", configs_.topic.control_info.c_str());
+        RCLCPP_INFO(this->get_logger(), "Vehicle info topic: %s", configs_.topic.vehicle_info.c_str());
         RCLCPP_INFO(this->get_logger(), "Joy timeout: %f", configs_.timeout.joy_timeout);
         RCLCPP_INFO(this->get_logger(), "Vel increase decrease rate: %f", configs_.settings.vel_increase_decrease_rate);
         RCLCPP_INFO(this->get_logger(), "Max speed: %f", configs_.settings.max_speed);
         RCLCPP_INFO(this->get_logger(), "Control cmd period: %d", configs_.settings.control_cmd_period);
+        RCLCPP_INFO(this->get_logger(), "Max steering angle: %f", configs_.settings.max_steering_angle);
+        RCLCPP_INFO(this->get_logger(), "Max tire angle: %f", configs_.settings.max_tire_angle);
         RCLCPP_INFO(this->get_logger(), "-----------------------------------------------------------------------");
     }
 
@@ -57,5 +67,10 @@ namespace robione_joy_adapter{
     void RobioneJoyAdapter::control_info_callback(const robione_ros2_driver::msg::ControlInfo::SharedPtr msg)
     {
         control_info_ptr_ = msg;
+    }
+
+    void RobioneJoyAdapter::vehicle_info_callback(const robione_ros2_driver::msg::VehicleInfo::SharedPtr msg)
+    {
+        vehicle_info_ptr_ = msg;
     }
 };
