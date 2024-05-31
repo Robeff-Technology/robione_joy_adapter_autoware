@@ -1,28 +1,18 @@
 #include "robione_joy_adapter/robione_joy_adapter.h"
 
 namespace robione_joy_adapter{
-    RobioneJoyAdapter::RobioneJoyAdapter(): Node("robione_joy_adapter")
+    RobioneJoyAdapter::RobioneJoyAdapter(const rclcpp::NodeOptions& options): Node("robione_joy_adapter", options)
     {
         load_parameters();
+        create_autoware_publishers();
         joy_converter_.LoadSettings(configs_.settings.max_speed, configs_.settings.vel_increase_decrease_rate, configs_.settings.max_steering_angle, configs_.settings.max_tire_angle);
         sub_joy_ = this->create_subscription<sensor_msgs::msg::Joy>(configs_.topic.joy, 10, std::bind(&RobioneJoyAdapter::joy_callback, this, std::placeholders::_1));
         timer_ = this->create_wall_timer(std::chrono::milliseconds(configs_.settings.control_cmd_period), std::bind(&RobioneJoyAdapter::timer_callback, this));
-        pub_control_cmd_ = this->create_publisher<robione_ros2_driver::msg::ControlCmd>(configs_.topic.control_cmd, 10);
-        sub_control_info_ = this->create_subscription<robione_ros2_driver::msg::ControlInfo>(configs_.topic.control_info, 10, std::bind(&RobioneJoyAdapter::control_info_callback, this, std::placeholders::_1));
-        sub_vehicle_info_ = this->create_subscription<robione_ros2_driver::msg::VehicleInfo>(configs_.topic.vehicle_info, 10, std::bind(&RobioneJoyAdapter::vehicle_info_callback, this, std::placeholders::_1));
     }
 
     void RobioneJoyAdapter::joy_callback(const sensor_msgs::msg::Joy::SharedPtr msg)
     {
-        if(control_info_ptr_ != nullptr || vehicle_info_ptr_ != nullptr){
-            joy_converter_.UpdateJoy(msg, control_info_ptr_, vehicle_info_ptr_);
-        }
-        else{
-            RCLCPP_WARN(this->get_logger(), "Control info  or vehicle info not received yet");
-            joy_converter_.set_emergency();
-        }
-
-
+        (void)msg;
         joy_time_ = rclcpp::Clock().now();
     }
 
@@ -60,17 +50,23 @@ namespace robione_joy_adapter{
             RCLCPP_WARN(this->get_logger(), "Joystick timeout");
             return;
         }
-        auto control_cmd = joy_converter_.GetControlCmd();
-        pub_control_cmd_->publish(control_cmd);
     }
 
-    void RobioneJoyAdapter::control_info_callback(const robione_ros2_driver::msg::ControlInfo::SharedPtr msg)
+    void RobioneJoyAdapter::create_autoware_publishers()
     {
-        control_info_ptr_ = msg;
-    }
-
-    void RobioneJoyAdapter::vehicle_info_callback(const robione_ros2_driver::msg::VehicleInfo::SharedPtr msg)
-    {
-        vehicle_info_ptr_ = msg;
+        pub_autoware_state_ = this->create_publisher<autoware_auto_system_msgs::msg::AutowareState>("/autoware/state", 10);
+        pub_control_cmd_ = this->create_publisher<autoware_auto_control_msgs::msg::AckermannControlCommand>("/control/command/control_cmd", 10);
+        pub_turn_indicators_ = this->create_publisher<autoware_auto_vehicle_msgs::msg::TurnIndicatorsCommand>("/control/command/turn_indicators_cmd", 10);
+        pub_hazard_lights_ = this->create_publisher<autoware_auto_vehicle_msgs::msg::HazardLightsCommand>("/control/command/hazard_lights_cmd", 10);
+        pub_gear_ = this->create_publisher<autoware_auto_vehicle_msgs::msg::GearCommand>("/control/command/gear_cmd", 10);
+        pub_vehicle_emergency_ = this->create_publisher<tier4_vehicle_msgs::msg::VehicleEmergencyStamped>("/control/command/emergency_cmd", 10);
+        pub_gate_mode_ = this->create_publisher<tier4_control_msgs::msg::GateMode>("/control/current_gate_mode", 10);
+        pub_engage_ = this->create_publisher<autoware_auto_vehicle_msgs::msg::Engage>("/autoware/engage", 10);
+        pub_emergency_state_ = this->create_publisher<autoware_auto_system_msgs::msg::EmergencyState>("/system/emergency/emergency_state", 10);
+        pub_operation_mode_state_ = this->create_publisher<autoware_adapi_v1_msgs::msg::OperationModeState>("/api/operation_mode/state", 10);
+        pub_route_state_ = this->create_publisher<autoware_adapi_v1_msgs::msg::RouteState>("/api/routing/state", 10);
     }
 };
+
+#include "rclcpp_components/register_node_macro.hpp"
+RCLCPP_COMPONENTS_REGISTER_NODE(robione_joy_adapter::RobioneJoyAdapter)
